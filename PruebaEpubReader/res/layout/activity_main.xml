@@ -9,62 +9,22 @@
     tools:context=".MainActivity" >
 
     <TextView
-        android:id="@+id/textView1"
+        android:id="@+id/output"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentLeft="true"
         android:layout_alignParentTop="true"
-        android:text="@string/email"
+        android:text="@string/dropbox"
         android:textAppearance="?android:attr/textAppearanceLarge" />
-
-    <EditText
-        android:id="@+id/email"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentLeft="true"
-        android:layout_alignParentRight="true"
-        android:layout_below="@+id/textView1"
-        android:ems="10"
-        android:inputType="textEmailAddress" >
-
-        <requestFocus />
-    </EditText>
-
-    <TextView
-        android:id="@+id/textView2"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignLeft="@+id/email"
-        android:layout_below="@+id/email"
-        android:layout_marginTop="16dp"
-        android:text="@string/password"
-        android:textAppearance="?android:attr/textAppearanceLarge" />
-
-    <EditText
-        android:id="@+id/password"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignLeft="@+id/textView2"
-        android:layout_alignRight="@+id/email"
-        android:layout_below="@+id/textView2"
-        android:ems="10"
-        android:inputType="textPassword" />
 
     <Button
-        android:id="@+id/loginButton"
+        android:id="@+id/link_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
         android:layout_alignParentLeft="true"
-        android:layout_below="@+id/password"
-        android:text="@string/login" />
-
-    <CheckBox
-        android:id="@+id/rememberButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignBottom="@+id/loginButton"
-        android:layout_alignRight="@+id/password"
-        android:layout_toRightOf="@+id/loginButton"
-        android:text="@string/remember" />
+        android:layout_alignParentRight="true"
+        android:gravity="center"
+        android:text="@string/link_button" />
 
 </RelativeLayout>
