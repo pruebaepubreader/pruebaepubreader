@@ -37,6 +37,7 @@ import android.widget.ImageButton;
 import android.widget.ListView;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.Toast;
 import android.widget.AdapterView.OnItemSelectedListener;
 
 public class MainActivity extends Activity implements OnItemSelectedListener  {
@@ -54,7 +55,8 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 	private DbxAccountManager mDbxAcctMgr;
 	private DbxFileSystem dbxFs;
 	private List<BookInfo> infos;
-	
+
+	private DbxPath pathLastSelectedBook = new DbxPath("");
 	private MainActivityHandler handler = new MainActivityHandler(this);
 	private ProgressDialog dialogo;
 	private String logTag = "PruebaEpubReader";
@@ -155,7 +157,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 	        			Log.e(logTag, "* No Cover Image for "+ infoCurrent.path);
 	        		}
 	        		
-	        		infos.add(new BookInfo(coverImage, bookTitle, infoCurrent.modifiedTime));
+	        		infos.add(new BookInfo(infoCurrent.path, coverImage, bookTitle, infoCurrent.modifiedTime));
 	        		currentFile.close();
 	        	}
 	        }
@@ -257,24 +259,47 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 			View item = convertView;
 			ViewHolder holder;
 			
-			if(item ==null){
+			if(item == null){
 				LayoutInflater inflater = context.getLayoutInflater();
 				item = inflater.inflate(R.layout.listelement, null);
 				
 				holder = new ViewHolder();
-				holder.bookicon = (ImageButton) item.findViewById(R.id.bookicon);
+				holder.path = infos.get(position).path;
 				holder.bookname = (TextView) item.findViewById(R.id.bookname);
 				holder.date = (TextView) item.findViewById(R.id.date);
-				
+				holder.bookicon = (ImageButton) item.findViewById(R.id.bookicon);
+				holder.bookicon.setOnClickListener(new MyOnClickListenerWithListPosition(holder.path));
+				holder.bookname.setText(infos.get(position).title);
+				holder.date.setText(infos.get(position).date.toString());
 				item.setTag(holder);
 			}else{
 				holder = (ViewHolder)item.getTag();
 			}
-			holder.bookname.setText(infos.get(position).title);
-			holder.date.setText(infos.get(position).date.toString());
+			
 			return (item);
 		}
 	}
+	
+	
+	private class MyOnClickListenerWithListPosition implements OnClickListener{
+		private DbxPath path;
+		public MyOnClickListenerWithListPosition(DbxPath path) {
+			this.path = path;
+	     }
+
+	     @Override
+	     public void onClick(View v)
+	     {
+	         if(path.compareTo(pathLastSelectedBook) != 0){
+	        	 pathLastSelectedBook = path;
+	        	 Log.d(logTag, "Selected = " + pathLastSelectedBook.toString());
+	        	 Toast.makeText(MainActivity.this, "Push again to see the cover", Toast.LENGTH_SHORT).show();
+	         }else{
+	        	 Log.d(logTag, "Selected second time = " + pathLastSelectedBook.toString());
+	         }
+	     }
+
+	  }
 	
 	/**
 	 * View Holder with the three elements of the list.
@@ -282,16 +307,19 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 	 *
 	 */
 	private static class ViewHolder{
+		DbxPath path; //Path is used to uniquely identify the book file
 		ImageButton bookicon;
 		TextView bookname;
 		TextView date;
 	}
 	
 	private static class BookInfo{
+		DbxPath path; //Path is used to uniquely identify the book file
 		Bitmap coverImage;
 		String title;
 		Date date;
-		BookInfo(Bitmap coverImage, String title, Date date){
+		BookInfo(DbxPath path, Bitmap coverImage, String title, Date date){
+			this.path = path;
 			this.coverImage = coverImage;
 			this.title = title;
 			this.date = date;
@@ -362,8 +390,6 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 	@Override
 	public void onNothingSelected(AdapterView<?> arg0) {
 		// TODO Auto-generated method stub
-		
+
 	}
-	
-	
 }
