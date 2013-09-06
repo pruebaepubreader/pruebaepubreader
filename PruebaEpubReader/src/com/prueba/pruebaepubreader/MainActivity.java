@@ -2,15 +2,12 @@ package com.prueba.pruebaepubreader;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.LinkedList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
-
-import org.apache.http.NameValuePair;
-import org.apache.http.message.BasicNameValuePair;
 
 import com.dropbox.sync.android.DbxAccountManager;
 import com.dropbox.sync.android.DbxException;
-import com.dropbox.sync.android.DbxFile;
 import com.dropbox.sync.android.DbxFileInfo;
 import com.dropbox.sync.android.DbxFileSystem;
 import com.dropbox.sync.android.DbxPath;
@@ -42,6 +39,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 	
 	private ViewHolder [] viewHolders;
 	
+	ArrayAdapter<CharSequence> adapter;
 	private Spinner spinner;
 	private ListView bookList;
 	private Button mLinkButton;
@@ -52,12 +50,15 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 	private MainActivityHandler handler = new MainActivityHandler(this);
 	private ProgressDialog dialogo;
 	
+	/**
+	 * Executed at app creation
+	 */
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 		
-		infos = new LinkedList<DbxFileInfo>();
+		infos = new ArrayList<DbxFileInfo>();
 		mLinkButton = (Button) findViewById(R.id.link_button);
 		bookList = (ListView) findViewById(R.id.bookList);
 		mLinkButton.setOnClickListener(new OnClickListener() {
@@ -68,13 +69,19 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 		});
 		mDbxAcctMgr = DbxAccountManager.getInstance(getApplicationContext(), appKey, appSecret); //TODO
 		
-		ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(
-                this, R.array.spinner_array, android.R.layout.simple_spinner_item);
+		adapter = ArrayAdapter.createFromResource(this, R.array.spinner_array, android.R.layout.simple_spinner_item);
 		spinner = (Spinner) findViewById(R.id.spinner);
 		spinner.setAdapter(adapter);
         spinner.setOnItemSelectedListener(this);
+        
+        if (mDbxAcctMgr.hasLinkedAccount()) {
+			showLinkedView();
+			getEpubFiles();
+		} else {
+			showUnlinkedView();
+		}
 	}
-
+	
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
 		getMenuInflater().inflate(R.menu.main, menu);
@@ -85,30 +92,36 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 	@Override
 	protected void onResume() {
 		super.onResume();
-		if (mDbxAcctMgr.hasLinkedAccount()) {
-			showLinkedView();
-			getEpubFiles();
-		} else {
-			showUnlinkedView();
-		}
+		
 	}
 	
+	/**
+	 * Create link to Dropbox
+	 */
 	private void onClickLinkToDropbox() {
         mDbxAcctMgr.startLink((Activity)this, REQUEST_LINK_TO_DBX);
     }
 
+	/**
+	 * Create the view used when the link to dropbox was successful
+	 */
 	private void showLinkedView() {
 		mLinkButton.setVisibility(View.GONE);
 		bookList.setVisibility(View.VISIBLE);
 		spinner.setVisibility(View.VISIBLE);
 	}
-
+	/**
+	 * Create the view used when the link to dropbox has not been done yet
+	 */
 	private void showUnlinkedView() {
 		mLinkButton.setVisibility(View.VISIBLE);
 		bookList.setVisibility(View.GONE);
 		spinner.setVisibility(View.GONE);
 	}
-	
+	/**
+	 * Recursive epub file search
+	 * @param path
+	 */
 	private void recursiveFileSearch(DbxPath path){
 		try {
 			List<DbxFileInfo> infosCurrent = dbxFs.listFolder(path);
@@ -124,6 +137,43 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 		}
 	}
 	
+	/**
+	 * Short the book list by name
+	 */
+	private void sortByName(){
+		Collections.sort(infos, new Comparator<DbxFileInfo>(){
+			public int compare(DbxFileInfo file1, DbxFileInfo file2){
+				if(file1.path.toString().compareTo(file2.path.toString())<0){
+					return -1;
+				}else{
+					return 1;
+				}
+			}
+		});
+	}
+	
+	/**
+	 * Short the book list by date
+	 */
+	private void sortByDate(){
+		Collections.sort(infos, new Comparator<DbxFileInfo>(){
+			public int compare(DbxFileInfo file1, DbxFileInfo file2){
+				if(file1.modifiedTime.compareTo(file2.modifiedTime)<0){
+					return -1;
+				}else{
+					return 1;
+				}
+			}
+		});
+	}
+	
+	/**
+	 * Get all the epub files from dropbox
+	 * A new thread must be created because listFolder used to get the files from dropbox
+	 * will block to wait for the fist sync to be completed. Not using a different thread
+	 * will make the UI thread unresponsive if the dropbox file system is big and takes
+	 * long to schincronize.
+	 */
 	private void getEpubFiles() {
         try {
             // Create DbxFileSystem for synchronized file access.
@@ -136,6 +186,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 			Thread comunicaciones = new Thread(){
 				public void run(){
 					recursiveFileSearch(DbxPath.ROOT);
+					sortByName();
 		            MainActivity.this.handler.sendEmptyMessage(0);
 				}
 			};
@@ -146,31 +197,21 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
         }
     }
 	
+
 	/**
-	 * Método que recibe el mensaje del handler
-	 * @param msg
+	 * Displays the files in a list with a generic icon, name and date
 	 */
-	private void handleMessage(Message msg) {
-        switch(msg.what) {
-	        case 0:
-	        	dialogo.dismiss();
-	        	//printFiles();
-	        	listFiles();
-	        break;
-        }
-    }
-	
 	private void listFiles(){
 		viewHolders = new ViewHolder[infos.size()];
 		BookListAdapter bookListAdapter = new BookListAdapter(this);
 		bookList.setAdapter(bookListAdapter);
 	}
-	/*private void printFiles(){
-		for (DbxFileInfo info : infos) {
-			output.append("    " + info.path + ", " + info.modifiedTime + '\n');
-        }
-	}*/
 	
+	/**
+	 * Adapter for displaying the List as a ListView
+	 * @author Alvaro
+	 *
+	 */
 	private class BookListAdapter extends ArrayAdapter<Object>{
 		Activity context;
 		
@@ -179,6 +220,9 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 			this.context = context;
 		}
 		
+		/**
+		 * Get View for each position in the list
+		 */
 		public View getView(int position, View convertView, ViewGroup parent){
 			View item = convertView;
 			ViewHolder holder;
@@ -202,16 +246,34 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 		}
 	}
 	
+	/**
+	 * View Holder with the three elements of the list.
+	 * @author Alvaro
+	 *
+	 */
 	private static class ViewHolder{
 		ImageButton bookicon;
 		TextView bookname;
 		TextView date;
 	}
 	
+	/**
+	 * Handle message of dropbox file system communication thread
+	 * @param msg
+	 */
+	private void handleMessage(Message msg) {
+        switch(msg.what) {
+	        case 0:
+	        	dialogo.dismiss();
+	        	spinner.setSelection(0, true);
+	        	listFiles();
+	        break;//TODO check dropbox communication fail, other case message may be needed
+        }
+    }
 	
 	/**
-	 * Implementa el handler para las comunicaciones
-	 * @author Álvaro González Prieto
+	 * Handler for receiving the message of the dropbox file system communication thread
+	 * @author Alvaro
 	 *
 	 */
 	static private class MainActivityHandler extends Handler {
@@ -224,7 +286,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
             this.parent = parent;
         }
         /**
-         * Handler del mensaje
+         * Message Handler
          */
         public void handleMessage(Message msg) {
         	if(parent != null){
@@ -233,15 +295,27 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
         }
     }
 	
-
+	/**
+	 * Spinner item selection
+	 */
 	@Override
 	public void onItemSelected(AdapterView<?> parent, View arg1, int position, long arg3) {
 		// TODO Auto-generated method stub
 		setOrder((String) parent.getItemAtPosition(position));
 	}
 	
+	/**
+	 * Set name or date order depending on the item selection
+	 * @param order
+	 */
 	private void setOrder(String order){
-		
+		if(order.equals(getString(R.string.name))){
+			this.sortByName();
+			this.listFiles();
+		}else if(order.equals(getString(R.string.date))){
+			this.sortByDate();
+			this.listFiles();
+		}
 	}
 
 	@Override
