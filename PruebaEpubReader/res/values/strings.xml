@@ -10,5 +10,13 @@
     <string name="remember">Remember</string>
     <string name="dropbox">Dropbox</string>
     <string name="link_button">dropbox link</string>
+    <string name="bookname">Book Name</string>
+    <string name="date">Date</string>
+    <string name="bookicon">Book Icon</string>
+    <string name="name">Name</string>
+    <string-array name="spinner_array">
+	    <item>@string/name</item>
+	    <item>@string/date</item>
+  	</string-array>
 
 </resources>
