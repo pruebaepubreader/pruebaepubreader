@@ -4,19 +4,27 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
+
+import nl.siegmann.epublib.domain.Book;
+import nl.siegmann.epublib.epub.EpubReader;
 
 import com.dropbox.sync.android.DbxAccountManager;
 import com.dropbox.sync.android.DbxException;
+import com.dropbox.sync.android.DbxFile;
 import com.dropbox.sync.android.DbxFileInfo;
 import com.dropbox.sync.android.DbxFileSystem;
 import com.dropbox.sync.android.DbxPath;
 
 import android.app.Activity;
 import android.app.ProgressDialog;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.View;
@@ -45,11 +53,11 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 	private Button mLinkButton;
 	private DbxAccountManager mDbxAcctMgr;
 	private DbxFileSystem dbxFs;
-	private List<DbxFileInfo> infos;
+	private List<BookInfo> infos;
 	
 	private MainActivityHandler handler = new MainActivityHandler(this);
 	private ProgressDialog dialogo;
-	
+	private String logTag = "PruebaEpubReader";
 	/**
 	 * Executed at app creation
 	 */
@@ -58,7 +66,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 		
-		infos = new ArrayList<DbxFileInfo>();
+		infos = new ArrayList<BookInfo>();
 		mLinkButton = (Button) findViewById(R.id.link_button);
 		bookList = (ListView) findViewById(R.id.bookList);
 		mLinkButton.setOnClickListener(new OnClickListener() {
@@ -129,11 +137,32 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 	        	if(infoCurrent.isFolder){
 	        		recursiveFileSearch(infoCurrent.path);
 	        	}else if(infoCurrent.path.toString().endsWith(".epub")){
-	        		infos.add(infoCurrent);
+	        		Log.d(logTag, "Add book");
+	        		DbxFile currentFile = dbxFs.open(infoCurrent.path);
+	        		Book book = (new EpubReader()).readEpub(currentFile.getReadStream());
+	        		String bookTitle;
+	        		Bitmap coverImage;
+	        		try{
+	        			bookTitle=book.getTitle();
+	        		}catch (NullPointerException e){
+	        			bookTitle = "* No Title for " + infoCurrent.path;
+	        			Log.e(logTag, bookTitle);
+	        		}
+	        		try{
+	        			coverImage = BitmapFactory.decodeStream(book.getCoverImage().getInputStream());
+	        		}catch (NullPointerException e){
+	        			coverImage = null;
+	        			Log.e(logTag, "* No Cover Image for "+ infoCurrent.path);
+	        		}
+	        		
+	        		infos.add(new BookInfo(coverImage, bookTitle, infoCurrent.modifiedTime));
+	        		currentFile.close();
 	        	}
 	        }
 		} catch (DbxException e) {
-			e.printStackTrace();
+			Log.e(logTag, e.toString());
+		} catch (IOException e) {
+			Log.e(logTag, e.toString());
 		}
 	}
 	
@@ -141,9 +170,9 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 	 * Short the book list by name
 	 */
 	private void sortByName(){
-		Collections.sort(infos, new Comparator<DbxFileInfo>(){
-			public int compare(DbxFileInfo file1, DbxFileInfo file2){
-				if(file1.path.toString().compareTo(file2.path.toString())<0){
+		Collections.sort(infos, new Comparator<BookInfo>(){
+			public int compare(BookInfo file1, BookInfo file2){
+				if(file1.title.compareTo(file2.title) <0){
 					return -1;
 				}else{
 					return 1;
@@ -156,9 +185,9 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 	 * Short the book list by date
 	 */
 	private void sortByDate(){
-		Collections.sort(infos, new Comparator<DbxFileInfo>(){
-			public int compare(DbxFileInfo file1, DbxFileInfo file2){
-				if(file1.modifiedTime.compareTo(file2.modifiedTime)<0){
+		Collections.sort(infos, new Comparator<BookInfo>(){
+			public int compare(BookInfo file1, BookInfo file2){
+				if(file1.date.compareTo(file2.date)<0){
 					return -1;
 				}else{
 					return 1;
@@ -186,6 +215,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 			Thread comunicaciones = new Thread(){
 				public void run(){
 					recursiveFileSearch(DbxPath.ROOT);
+					Log.d(logTag, "Recursive File Search Finished");
 					sortByName();
 		            MainActivity.this.handler.sendEmptyMessage(0);
 				}
@@ -193,7 +223,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 			comunicaciones.start();
             
         } catch (IOException e) {
-        	e.printStackTrace();
+        	Log.e(logTag, e.toString());
         }
     }
 	
@@ -240,8 +270,8 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 			}else{
 				holder = (ViewHolder)item.getTag();
 			}
-			holder.bookname.setText(infos.get(position).path.toString());
-			holder.date.setText(infos.get(position).modifiedTime.toString());
+			holder.bookname.setText(infos.get(position).title);
+			holder.date.setText(infos.get(position).date.toString());
 			return (item);
 		}
 	}
@@ -255,6 +285,17 @@ public class MainActivity extends Activity implements OnItemSelectedListener  {
 		ImageButton bookicon;
 		TextView bookname;
 		TextView date;
+	}
+	
+	private static class BookInfo{
+		Bitmap coverImage;
+		String title;
+		Date date;
+		BookInfo(Bitmap coverImage, String title, Date date){
+			this.coverImage = coverImage;
+			this.title = title;
+			this.date = date;
+		}
 	}
 	
 	/**
