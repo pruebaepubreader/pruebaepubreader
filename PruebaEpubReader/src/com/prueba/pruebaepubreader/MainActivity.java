@@ -192,11 +192,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 	private void sortByName() {
 		Collections.sort(bookInfoList, new Comparator<BookInfo>() {
 			public int compare(BookInfo file1, BookInfo file2) {
-				if (file1.title.compareTo(file2.title) < 0) {
-					return -1;
-				} else {
-					return 1;
-				}
+				return file1.title.compareTo(file2.title);
 			}
 		});
 
@@ -208,11 +204,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 	private void sortByDate() {
 		Collections.sort(bookInfoList, new Comparator<BookInfo>() {
 			public int compare(BookInfo file1, BookInfo file2) {
-				if (file1.date.compareTo(file2.date) < 0) {
-					return -1;
-				} else {
-					return 1;
-				}
+				return file1.date.compareTo(file2.date);
 			}
 		});
 
