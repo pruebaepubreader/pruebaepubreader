@@ -57,6 +57,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 	private DbxFileSystem dbxFs;
 	private List<BookInfo> bookInfoList = null;
 	private boolean bookInfoListWasRead = false;
+	private boolean isReadingBookCover = false;
 	private MainActivityHandler handler = new MainActivityHandler(this);
 	private ProgressDialog dialogo;
 	private DbxPath pathLastSelectedBook = new DbxPath("");
@@ -329,7 +330,9 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 				Log.d(logTag,
 						"Selected second time = "
 								+ pathLastSelectedBook.toString());
-				getBookCoverImage();
+				if(isReadingBookCover == false){
+					getBookCoverImage();
+				}
 			}
 		}
 
@@ -344,6 +347,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 		dialogo = ProgressDialog.show(MainActivity.this, "",
 				"Searching cover image...", true, false);
 		coverImage = null;
+		isReadingBookCover = true;
 		Thread comunicaciones = new Thread() {
 			public void run() {
 				try {
@@ -455,6 +459,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 			break;
 		case 1:
 			dialogo.dismiss();
+			isReadingBookCover = false;
 			createImageCoverActivity();
 			break;
 		}
