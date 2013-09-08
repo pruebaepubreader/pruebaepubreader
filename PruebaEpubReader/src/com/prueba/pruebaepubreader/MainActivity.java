@@ -22,16 +22,21 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.ViewGroup.LayoutParams;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.ListView;
+import android.widget.PopupWindow;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -42,24 +47,22 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 	private static final String appKey = "6kqi2xfu21urmde";
 	private static final String appSecret = "etd89oey5ebpiwz";
 	private static final int REQUEST_LINK_TO_DBX = 0;
-
+	private String logTag = "PruebaEpubReader";
 	private ViewHolder[] viewHolders;
-
-	ArrayAdapter<CharSequence> adapter;
+	private ArrayAdapter<CharSequence> adapter;
 	private Spinner spinner;
 	private ListView bookList;
 	private Button mLinkButton;
 	private DbxAccountManager mDbxAcctMgr;
 	private DbxFileSystem dbxFs;
-	private List<BookInfo> infos;
-
+	private List<BookInfo> bookInfoList = null;
+	private boolean bookInfoListWasRead = false;
 	private MainActivityHandler handler = new MainActivityHandler(this);
 	private ProgressDialog dialogo;
-	private String logTag = "PruebaEpubReader";
-	
 	private DbxPath pathLastSelectedBook = new DbxPath("");
 	private Bitmap coverImage = null;
-
+	private PopupWindow mPopupWindow;
+	
 	/**
 	 * Executed at app creation
 	 */
@@ -68,7 +71,6 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 
-		infos = new ArrayList<BookInfo>();
 		mLinkButton = (Button) findViewById(R.id.link_button);
 		bookList = (ListView) findViewById(R.id.bookList);
 		mLinkButton.setOnClickListener(new OnClickListener() {
@@ -77,33 +79,51 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 				onClickLinkToDropbox();
 			}
 		});
-		mDbxAcctMgr = DbxAccountManager.getInstance(getApplicationContext(),
-				appKey, appSecret); // TODO
-
+		try{
+			mDbxAcctMgr = DbxAccountManager.getInstance(getApplicationContext(),
+					appKey, appSecret);
+		}catch(Exception e){
+			Log.d(logTag, "Error DbxAccountManager: " + e.toString());
+		}
 		adapter = ArrayAdapter.createFromResource(this, R.array.spinner_array,
 				android.R.layout.simple_spinner_item);
 		spinner = (Spinner) findViewById(R.id.spinner);
 		spinner.setAdapter(adapter);
 		spinner.setOnItemSelectedListener(this);
-
+	}
+	
+	/**
+	 * Check if the app has linked with dropbox, if it is linked and the
+	 * books from dropbox have not been read, the app proceeds to read them
+	 */
+	private void checkLink(){
 		if (mDbxAcctMgr.hasLinkedAccount()) {
 			showLinkedView();
-			getEpubFiles();
+			if(!bookInfoListWasRead){
+				getEpubFiles();
+			}
 		} else {
 			showUnlinkedView();
 		}
 	}
-
+	
+	/**
+	 * Menu not used
+	 */
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
-		getMenuInflater().inflate(R.menu.main, menu);
-
-		return true;
+		//getMenuInflater().inflate(R.menu.main, menu);
+		return false;
 	}
-
-	@Override
+	
+	/**
+	 * Then the Activity starts running for the first time or again, the link with
+	 * dropbox is checked.
+	 */
+		@Override
 	protected void onResume() {
 		super.onResume();
+		checkLink();
 	}
 
 	/**
@@ -153,18 +173,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 						bookTitle = "* No Title for " + infoCurrent.path;
 						Log.e(logTag, bookTitle);
 					}
-					/*
-					 * Bitmap coverImage; try { coverImage =
-					 * BitmapFactory.decodeStream(book
-					 * .getCoverImage().getInputStream()); } catch
-					 * (NullPointerException e) { coverImage = null;
-					 * Log.e(logTag, "* No Cover Image for " +
-					 * infoCurrent.path); } catch (OutOfMemoryError E) {
-					 * coverImage = null; Log.e(logTag, "* OutOfMemoryError " +
-					 * infoCurrent.path); }
-					 */
-
-					infos.add(new BookInfo(infoCurrent.path, bookTitle,
+					bookInfoList.add(new BookInfo(infoCurrent.path, bookTitle,
 							infoCurrent.modifiedTime));
 					currentFile.close();
 					Log.d(logTag, "Add book: " + bookTitle + "\n  Path: "
@@ -184,7 +193,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 	 * Short the book list by name
 	 */
 	private void sortByName() {
-		Collections.sort(infos, new Comparator<BookInfo>() {
+		Collections.sort(bookInfoList, new Comparator<BookInfo>() {
 			public int compare(BookInfo file1, BookInfo file2) {
 				if (file1.title.compareTo(file2.title) < 0) {
 					return -1;
@@ -201,7 +210,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 	 */
 	private void sortByDate() {
 
-		Collections.sort(infos, new Comparator<BookInfo>() {
+		Collections.sort(bookInfoList, new Comparator<BookInfo>() {
 			public int compare(BookInfo file1, BookInfo file2) {
 				if (file1.date.compareTo(file2.date) < 0) {
 					return -1;
@@ -222,18 +231,19 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 	 */
 	private void getEpubFiles() {
 		try {
+			bookInfoList = new ArrayList<BookInfo>();
 			// Create DbxFileSystem for synchronized file access.
 			dbxFs = DbxFileSystem.forAccount(mDbxAcctMgr.getLinkedAccount());
 
-			// Print the contents of the root folder. This will block until we
-			// can
-			// sync metadata the first time.
+			// Print the contents of the root folder. This will block until
+			// metadata synchronized the first time.
 
 			dialogo = ProgressDialog.show(MainActivity.this, "",
-					"Synchronizing dropbox...", true, true);
+					"Synchronizing dropbox...", true, false);
 			Thread comunicaciones = new Thread() {
 				public void run() {
 					recursiveFileSearch(DbxPath.ROOT);
+					bookInfoListWasRead = true;
 					Log.d(logTag, "Recursive File Search Finished");
 					sortByName();
 					MainActivity.this.handler.sendEmptyMessage(0);
@@ -250,7 +260,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 	 * Displays the files in a list with a generic icon, name and date
 	 */
 	private void listFiles() {
-		viewHolders = new ViewHolder[infos.size()];
+		viewHolders = new ViewHolder[bookInfoList.size()];
 		BookListAdapter bookListAdapter = new BookListAdapter(this);
 		bookList.setAdapter(bookListAdapter);
 	}
@@ -281,20 +291,20 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 				item = inflater.inflate(R.layout.listelement, null);
 
 				holder = new ViewHolder();
-				holder.path = infos.get(position).path;
 				holder.bookname = (TextView) item.findViewById(R.id.bookname);
 				holder.date = (TextView) item.findViewById(R.id.date);
 				holder.bookicon = (ImageButton) item
 						.findViewById(R.id.bookicon);
-				holder.date.setText(infos.get(position).date.toString());
 				item.setTag(holder);
 			} else {
 				holder = (ViewHolder) item.getTag();
 			}
+			holder.path = bookInfoList.get(position).path;
 			holder.bookicon
 					.setOnClickListener(new MyOnClickListenerWithListPosition(
 							holder.path));
-			holder.bookname.setText(infos.get(position).title);
+			holder.bookname.setText(bookInfoList.get(position).title);
+			holder.date.setText(bookInfoList.get(position).date.toString());
 			return (item);
 		}
 	}
@@ -338,7 +348,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 	 */
 	private void getBookCoverImage() {
 		dialogo = ProgressDialog.show(MainActivity.this, "",
-				"Searching cover image...", true, true);
+				"Searching cover image...", true, false);
 		coverImage = null;
 		Thread comunicaciones = new Thread() {
 			public void run() {
@@ -353,10 +363,8 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 						Log.e(logTag, "* No Cover Image for: "
 								+ pathLastSelectedBook.toString());
 					} catch (OutOfMemoryError E) {
-
-						Log.e(logTag,
-								"* OutOfMemoryError: "
-										+ pathLastSelectedBook.toString());
+						Log.e(logTag, "* OutOfMemoryError: "
+								+ pathLastSelectedBook.toString());
 					}
 					currentCoverFile.close();
 				} catch (IOException E) {
@@ -372,15 +380,43 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 	}
 
 	/**
+	 * Overrides the back key press so that when the image Popup is shown the
+	 * back key
+	 */
+	@Override
+	public boolean onKeyDown(int keyCode, KeyEvent event) {
+		// Override back button
+		if (keyCode == KeyEvent.KEYCODE_BACK) {
+			if (mPopupWindow != null && mPopupWindow.isShowing()) {
+				mPopupWindow.dismiss();
+				return false;
+			}
+		}
+		return super.onKeyDown(keyCode, event);
+	}
+
+	/**
 	 * Create Image Cover Activity
 	 */
 	private void createImageCoverActivity() {
 		if (coverImage != null) {
-			
+			try {
+				LayoutInflater inflater = this.getLayoutInflater();
+				View mView = inflater.inflate(R.layout.bookcoverimage, null);
+				mPopupWindow = new PopupWindow(mView,
+						LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT,
+						false);
+				mPopupWindow.setAnimationStyle(android.R.style.Animation_Toast);
+				ImageView imageView = (ImageView) mView
+						.findViewById(R.id.bookcoverimage);
+				imageView.setImageBitmap(coverImage);
+				mPopupWindow.showAtLocation(imageView, Gravity.CENTER, 45, 0);
+			} catch (Exception e) {
+				Log.e(logTag, "Exception: " + e.toString());
+			}
 		} else {
-			Toast.makeText(MainActivity.this,
-					"Cover image not found", Toast.LENGTH_SHORT)
-					.show();
+			Toast.makeText(MainActivity.this, "Cover image not found",
+					Toast.LENGTH_SHORT).show();
 		}
 	}
 
@@ -396,7 +432,12 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 		TextView bookname;
 		TextView date;
 	}
-
+	
+	/**
+	 * Element of the book info list that will keep track of the relevant book data
+	 * @author Alvaro
+	 *
+	 */
 	private static class BookInfo {
 		DbxPath path; // Path is used to uniquely identify the book file
 		String title;
@@ -420,11 +461,11 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 			dialogo.dismiss();
 			spinner.setSelection(0, true);
 			listFiles();
-		break;
+			break;
 		case 1:
 			dialogo.dismiss();
 			createImageCoverActivity();
-		break;// TODO check dropbox communication fail, other case message may be needed
+			break;
 		}
 	}
 
@@ -463,7 +504,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 	@Override
 	public void onItemSelected(AdapterView<?> parent, View arg1, int position,
 			long arg3) {
-		// TODO Auto-generated method stub
+		// Auto-generated method stub
 		setOrder((String) parent.getItemAtPosition(position));
 	}
 
@@ -484,7 +525,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 
 	@Override
 	public void onNothingSelected(AdapterView<?> arg0) {
-		// TODO Auto-generated method stub
+		// Auto-generated method stub
 
 	}
 }

@@ -18,5 +18,6 @@
 	    <item>@string/name</item>
 	    <item>@string/date</item>
   	</string-array>
+	    <string name="coverbookimage">Book Cover</string>
 
 </resources>
