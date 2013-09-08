@@ -108,8 +108,8 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 	 */
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
-		// getMenuInflater().inflate(R.menu.main, menu);
-		return false;
+		getMenuInflater().inflate(R.menu.main, menu);
+		return true;
 	}
 
 	/**
@@ -222,7 +222,7 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 	 * listFolder used to get the files from dropbox will block to wait for the
 	 * fist sync to be completed. Not using a different thread will make the UI
 	 * thread unresponsive if the dropbox file system is big and takes long to
-	 * schincronize.
+	 * synchronize.
 	 */
 	private void getEpubFiles() {
 		try {
@@ -235,10 +235,10 @@ public class MainActivity extends Activity implements OnItemSelectedListener {
 
 			dialogo = ProgressDialog.show(MainActivity.this, "",
 					"Synchronizing dropbox...", true, false);
+			bookInfoListWasRead = true;
 			Thread comunicaciones = new Thread() {
 				public void run() {
 					recursiveFileSearch(DbxPath.ROOT);
-					bookInfoListWasRead = true;
 					sortByName();
 					MainActivity.this.handler.sendEmptyMessage(0);
 				}
